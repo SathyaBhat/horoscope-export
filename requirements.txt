@@ -1,0 +1,2 @@
+openpyxl=2.5.4
+pymysql=0.8.0
