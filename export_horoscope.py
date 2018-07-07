@@ -5,9 +5,10 @@ from openpyxl import load_workbook
 from sys import exit
 from pprint import pprint
 
+from logging import basicConfig, getLogger, DEBUG
+
 import pymysql
 import argparse
-
 
 def create_db_connection(args):
     connection = pymysql.connect(host=args.host,
@@ -22,43 +23,41 @@ def create_database(connection):
     except pymysql.err.ProgrammingError as e:
         code, msg = e.args
         if code == 1007:
-            print "Database exists, not recreating."
+            log.info("Database exists, not recreating.")
         else:
-            print "{} {}".format(code, msg)
+            log.error("Code: {} \n Messsage: {}".format(code, msg))
             exit(-1)
 
 def create_tables(connection, sheet, headers):
+    log.debug("Sheet name: {} \n headers: {}".format(sheet, headers)) 
+    sql_query = 'CREATE TABLE `{0}` ( \
+                                `{1}` bigint(11) unsigned NOT NULL AUTO_INCREMENT, \
+                                `{2}` varchar(11) CHARACTER SET utf8 DEFAULT NULL, \
+                                `{3}` mediumtext CHARACTER SET utf8,  \
+                                `{4}` text CHARACTER SET utf8,  \
+                                `{5}` int(11) DEFAULT NULL,  \
+                                `{6}` varchar(48) CHARACTER SET utf8 DEFAULT NULL, \
+                                `{7}` mediumtext CHARACTER SET ascii,  \
+                                PRIMARY KEY (`{1}`) \
+                                ) ENGINE=InnoDB'.format(sheet,
+                                                        headers[0],
+                                                        headers[1],
+                                                        headers[2],
+                                                        headers[3],
+                                                        headers[4],
+                                                        headers[5],
+                                                        headers[6])
+    log.debug('SQL Query:\n {}'.format(sql_query))
     try:
-        pprint(sheet) 
-        pprint(headers)
-        sql_query = 'CREATE TABLE `{0}` ( \
-                                    `{1}` bigint(11) unsigned NOT NULL AUTO_INCREMENT, \
-                                    `{2}` varchar(11) CHARACTER SET utf8 DEFAULT NULL, \
-                                    `{3}` mediumtext CHARACTER SET utf8,  \
-                                    `{4}` text CHARACTER SET utf8,  \
-                                    `{5}` int(11) DEFAULT NULL,  \
-                                    `{6}` varchar(48) CHARACTER SET utf8 DEFAULT NULL, \
-                                    `{7}` mediumtext CHARACTER SET ascii,  \
-                                    PRIMARY KEY (`{1}`) \
-                                    ) ENGINE=InnoDB'.format(sheet,
-                                                            headers[0],
-                                                            headers[1],
-                                                            headers[2],
-                                                            headers[3],
-                                                            headers[4],
-                                                            headers[5],
-                                                            headers[6])
-        pprint('SQL Query: {}'.format(sql_query))
-        try:
-            connection.cursor().execute(sql_query)
-        except pymysql.err.InternalError as e:
-            code, msg = e.args
-            if code == 1050:
-                print "Table exists, not creating"
-            else
-                print "{} {}".format(code, msg)
+        connection.cursor().execute(sql_query)
+    except pymysql.err.InternalError as e:
+        code, msg = e.args
+        if code == 1050:
+            log.info("Table exists, not creating")
+        else:
+            log.error("Code: {} \n Messsage: {}".format(code, msg))
             exit(-1)
-
+            
 def export_to_mysql(file_name, connection):
     book = load_workbook(file_name)
     sheets = book.sheetnames
@@ -77,6 +76,10 @@ def export_to_mysql(file_name, connection):
             
 
 if __name__=='__main__':
+    basicConfig(level=DEBUG,
+                    format='%(levelname)s: %(asctime)s -'
+                    ' %(funcName)s - %(message)s')
+    log = getLogger('horo')
     parser = argparse.ArgumentParser(description='Script to parse the horoscope Excel.')
     parser.add_argument('--file', '-f', required=True, help='Filename to be read')
     parser.add_argument('--host', '-o', required=True, help='MySQL Host')
