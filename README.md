@@ -12,4 +12,6 @@
 
  ## Run
  
-    python export_horoscope.py -f <filename> -h <mysql host> -u <mysql username> -p <mysql password>
+    python export_horoscope.py -f <filename> -h <mysql host> -u <mysql username> -p <mysql password> -d <database name>
+
+The database and the associated tables will be created when run
