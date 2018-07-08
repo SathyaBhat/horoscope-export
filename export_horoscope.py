@@ -11,10 +11,28 @@ import pymysql
 import argparse
 
 def create_db_connection(args):
-    connection = pymysql.connect(host=args.host,
-                                 user=args.user,
-                                 passwd=args.password,
-                                 db=args.database)
+    try:
+        connection = pymysql.connect(host=args.host,
+                                    user=args.user,
+                                    passwd=args.password,
+                                    db=args.database,
+                                    use_unicode=True, 
+                                    charset="utf8")
+    except pymysql.err.InternalError as e: 
+        code, msg = e.args
+        if code == 1049 and msg == "Unknown database '{}'".format(args.database):
+            connection = pymysql.connect(host=args.host,
+                                    user=args.user,
+                                    passwd=args.password,
+                                    use_unicode=True, 
+                                    charset="utf8")
+            connection.cursor().execute('create database {}'.format(args.database))
+            connection = pymysql.connect(host=args.host,
+                                    user=args.user,
+                                    passwd=args.password,
+                                    db=args.database,
+                                    use_unicode=True, 
+                                    charset="utf8") 
     return connection
 
 def create_database(connection):
@@ -28,8 +46,8 @@ def create_database(connection):
             log.error("Code: {} \n Messsage: {}".format(code, msg))
             exit(-1)
 
-def create_tables(connection, sheet, headers):
-    log.debug("Sheet name: {} \n headers: {}".format(sheet, headers)) 
+def create_tables(connection, table_name, headers):
+    log.debug("table_name name: {} \n headers: {}".format(table_name, headers)) 
     sql_query = 'CREATE TABLE `{0}` ( \
                                 `{1}` bigint(11) unsigned NOT NULL AUTO_INCREMENT, \
                                 `{2}` varchar(11) CHARACTER SET utf8 DEFAULT NULL, \
@@ -37,9 +55,9 @@ def create_tables(connection, sheet, headers):
                                 `{4}` text CHARACTER SET utf8,  \
                                 `{5}` int(11) DEFAULT NULL,  \
                                 `{6}` varchar(48) CHARACTER SET utf8 DEFAULT NULL, \
-                                `{7}` mediumtext CHARACTER SET ascii,  \
+                                `{7}` mediumtext CHARACTER SET utf8,  \
                                 PRIMARY KEY (`{1}`) \
-                                ) ENGINE=InnoDB'.format(sheet,
+                                ) ENGINE=InnoDB'.format(table_name,
                                                         headers[0],
                                                         headers[1],
                                                         headers[2],
@@ -57,7 +75,17 @@ def create_tables(connection, sheet, headers):
         else:
             log.error("Code: {} \n Messsage: {}".format(code, msg))
             exit(-1)
-            
+
+def insert_data_to_tables(connection, table, headers, data):
+    log.info("Inserting data to tables")
+    log.debug("Data: \n {}".format(data))
+    sql_query = "INSERT INTO {}({}, {}, {}, {}, {}, {}) \
+                    VALUES     (%s, %s, %s, %s, %s, %s)".format(table,
+                                                                headers[1],headers[2],headers[3],headers[4],headers[5],headers[6])
+    args = (data[1].value.strftime('%Y-%m-%d'),data[2].value,data[3].value,data[4].value,data[5].value,data[6].value )
+    log.debug("SQL Query {}".format(sql_query))
+    connection.cursor().execute(sql_query, args)
+
 def export_to_mysql(file_name, connection):
     book = load_workbook(file_name)
     sheets = book.sheetnames
@@ -72,8 +100,15 @@ def export_to_mysql(file_name, connection):
             headers.append(header.value)
         create_tables(connection, sheet, headers)
         for data in cells[1:]:
-            values.append(data[0].value  + ' ' +  data[1].value.strftime('%Y-%m-%d') + ' ' + data[2].value + ' ' + data[3].value + ' ' + data[4].value + ' ' + data[5].value + ' ' + data[6].value)
-            
+            try:
+                insert_data_to_tables(connection, sheet, headers, data)
+                connection.commit()
+            except (pymysql.err.InternalError, pymysql.err.DataError) as e:
+                code, msg = e.args
+                log.error("Code: {} \n Messsage: {}".format(code, msg))
+                log.debug("Sheet: {} \n Data {}".format(sheet, data[6].value))
+                connection.rollback()
+                exit(-1)
 
 if __name__=='__main__':
     basicConfig(level=DEBUG,
