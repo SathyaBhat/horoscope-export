@@ -58,13 +58,7 @@ def create_tables(connection, table_name, headers):
                                 `{7}` mediumtext CHARACTER SET utf8,  \
                                 PRIMARY KEY (`{1}`) \
                                 ) ENGINE=InnoDB'.format(table_name,
-                                                        headers[0],
-                                                        headers[1],
-                                                        headers[2],
-                                                        headers[3],
-                                                        headers[4],
-                                                        headers[5],
-                                                        headers[6])
+                                                        *headers)
     log.debug('SQL Query:\n {}'.format(sql_query))
     try:
         connection.cursor().execute(sql_query)
@@ -79,9 +73,9 @@ def create_tables(connection, table_name, headers):
 def insert_data_to_tables(connection, table, headers, data):
     log.info("Inserting data to tables")
     log.debug("Data: \n {}".format(data))
+    headers = headers[1:]
     sql_query = "INSERT INTO {}({}, {}, {}, {}, {}, {}) \
-                    VALUES     (%s, %s, %s, %s, %s, %s)".format(table,
-                                                                headers[1],headers[2],headers[3],headers[4],headers[5],headers[6])
+                    VALUES     (%s, %s, %s, %s, %s, %s)".format(table, *headers)
     args = (data[1].value.strftime('%Y-%m-%d'),data[2].value,data[3].value,data[4].value,data[5].value,data[6].value )
     log.debug("SQL Query {}".format(sql_query))
     connection.cursor().execute(sql_query, args)
@@ -106,7 +100,7 @@ def export_to_mysql(file_name, connection):
             except (pymysql.err.InternalError, pymysql.err.DataError) as e:
                 code, msg = e.args
                 log.error("Code: {} \n Messsage: {}".format(code, msg))
-                log.debug("Sheet: {} \n Data {}".format(sheet, data[6].value))
+                log.debug("Sheet: {} \n Data {}".format(sheet, data))
                 connection.rollback()
                 exit(-1)
 
